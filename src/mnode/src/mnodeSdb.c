@@ -38,12 +38,6 @@
 #define MAX_QUEUED_MSG_NUM 100000
 
 typedef enum {
-  SDB_ACTION_INSERT = 0,
-  SDB_ACTION_DELETE = 1,
-  SDB_ACTION_UPDATE = 2
-} ESdbAction;
-
-typedef enum {
   SDB_STATUS_OFFLINE = 0,
   SDB_STATUS_SERVING = 1,
   SDB_STATUS_CLOSING = 2

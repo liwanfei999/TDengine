@@ -216,6 +216,10 @@ static int32_t dnodeInitStorage() {
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
   // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
+  if (tsCompactMnodeWal != 0) {
+    exit(EXIT_SUCCESS);
+    return 0;
+  }
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));

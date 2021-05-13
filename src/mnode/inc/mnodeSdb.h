@@ -24,6 +24,12 @@ extern "C" {
 #include "twal.h"
 
 typedef enum {
+  SDB_ACTION_INSERT = 0,
+  SDB_ACTION_DELETE = 1,
+  SDB_ACTION_UPDATE = 2
+} ESdbAction;
+
+typedef enum {
   SDB_TABLE_CLUSTER = 0,
   SDB_TABLE_DNODE   = 1,
   SDB_TABLE_MNODE   = 2,

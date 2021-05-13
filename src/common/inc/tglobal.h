@@ -143,6 +143,7 @@ extern int8_t tsEnableStream;
 
 // internal
 extern int8_t  tsPrintAuth;
+extern int8_t  tsCompactMnodeWal;
 extern int8_t  tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];

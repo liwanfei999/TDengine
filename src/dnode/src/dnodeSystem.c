@@ -26,6 +26,7 @@ static void   sigintHandler(int32_t signum, void *sigInfo, void *context);
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
+  int compress_mnode_wal = 0;
 
   // Set global configuration file
   for (int32_t i = 1; i < argc; ++i) {
@@ -42,6 +43,8 @@ int32_t main(int32_t argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       dump_config = 1;
+    } else if (strcmp(argv[i], "-m") == 0) {
+      tsCompactMnodeWal = 1;      
     } else if (strcmp(argv[i], "-V") == 0) {
 #ifdef _ACCT
       char *versionStr = "enterprise";
