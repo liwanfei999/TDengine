@@ -25,6 +25,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeMnode.h"
@@ -173,6 +174,19 @@ void mnodeCleanupMnodes() {
   sdbCloseTable(tsMnodeRid);
   tsMnodeSdb = NULL;
   mnodeMnodeDestroyLock();
+}
+
+int32_t mnodeInitMnodesCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_MNODE,
+    .name         = "mnodes",
+    .hashSessions = TSDB_DEFAULT_MNODES_HASH_SIZE,
+    .keyType      = SDB_KEY_INT,
+    .fpDecode     = mnodeMnodeActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mnodeGetMnodesNum() { 

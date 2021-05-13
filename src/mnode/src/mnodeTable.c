@@ -30,6 +30,7 @@
 #include "hash.h"
 #include "mnode.h"
 #include "dnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
@@ -401,6 +402,19 @@ static int32_t mnodeInitChildTables() {
   return 0;
 }
 
+static int32_t mnodeInitChildTablesCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_CTABLE,
+    .name         = "ctables",
+    .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
+    .keyType      = SDB_KEY_VAR_STRING,
+    .fpDecode     = mnodeChildTableActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
+}
+
 static void mnodeCleanupChildTables() {
   sdbCloseTable(tsCTableRid);
   tsChildTableSdb = NULL;
@@ -609,12 +623,33 @@ static int32_t mnodeInitSuperTables() {
   return 0;
 }
 
+static int32_t mnodeInitSuperTablesCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_STABLE,
+    .name         = "stables",
+    .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
+    .keyType      = SDB_KEY_VAR_STRING,
+    .fpDecode     = mnodeSuperTableActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
+}
+
 static void mnodeCleanupSuperTables() {
   sdbCloseTable(tsSTableRid);
   tsSuperTableSdb = NULL;
 
   taosHashCleanup(tsSTableUidHash);
   tsSTableUidHash = NULL;
+}
+
+int32_t mnodeInitTablesCompact() {
+  int32_t code = mnodeInitChildTablesCompact();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }  
+  return mnodeInitSuperTablesCompact();
 }
 
 int32_t mnodeInitTables() {

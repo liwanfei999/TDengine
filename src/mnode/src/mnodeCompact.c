@@ -14,21 +14,34 @@
  */
 
 #define _DEFAULT_SOURCE
+
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "os.h"
+#include "hash.h"
+#include "tutil.h"
+#include "tref.h"
 #include "taoserror.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tglobal.h"
+#include "mnodeCompact.h"
+#include "mnodeInt.h"
 #include "mnodeSdb.h"
 
-// this file implement offline compact mnode wal function
+//int32_t tsCompactSdbRid;
 
+// this file implement offline compact mnode wal function
+static int     _mnodeCreateDir(const char *dir);
 static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused);
 static void*   _getCompactTableFromId(int32_t tableId);
 static int     _compactAndSaveWal();
 
 typedef struct {
+  char      name[12];
   ESdbKey   keyType;
+  ESdbTable id;
+  int32_t   hashSessions;
   int32_t (*fpDecode)(SSdbRow *pRow); 
   void *    iHandle;
 } SSdbCompactTable;
@@ -44,10 +57,15 @@ typedef struct {
 static SSdbCompactMgmt   tsSdbComMgmt = {0};
 
 int32_t mnodeCompactWal() {
+  sdbInfo("vgId:1, start compact mnode wal...");
+
   // init SSdbCompactMgmt
+  walInit();
+  mnodeInitMnodeCompactTables();
   tsSdbComMgmt.walHead = taosArrayInit(1024, sizeof(SWalHead));
 
   // first step: open wal
+  //tsCompactSdbRid = taosOpenRef(10, _compactSdbCloseTableObj);
   SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
   char    temp[TSDB_FILENAME_LEN] = {0};
   sprintf(temp, "%s/wal", tsMnodeDir);
@@ -60,8 +78,8 @@ int32_t mnodeCompactWal() {
   // second step: create wal tmp dir
   sprintf(temp, "%s/wal_tmp", tsMnodeDir);
 
-  if (dnodeCreateDir(temp) < 0) {
-   dError("failed to create mnode tmp wal dir: %s, reason: %s", tsMnodeDir, strerror(errno));
+  if (_mnodeCreateDir(temp) < 0) {
+   sdbError("failed to create mnode tmp wal dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   }
   tsSdbComMgmt.wal_tmp = walOpen(temp, &walCfg);
@@ -73,11 +91,41 @@ int32_t mnodeCompactWal() {
     return -1;
   }
 
-  sdbInfo("vgId:1, sdb wal load for compact success");
-
   // third step: save compacted wal
   _compactAndSaveWal();
+
+  sdbInfo("vgId:1, sdb wal load for compact success");
   return 0;  
+}
+
+int64_t sdbOpenCompactTable(SSdbTableCompactDesc *pDesc) {
+  SSdbCompactTable *pTable = (SSdbCompactTable *)calloc(1, sizeof(SSdbCompactTable));
+
+  if (pTable == NULL) return -1;
+
+  tstrncpy(pTable->name, pDesc->name, sizeof(pTable->name));
+  pTable->keyType      = pDesc->keyType;
+  pTable->id           = pDesc->id;
+  pTable->fpDecode     = pDesc->fpDecode;
+
+  _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+  if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
+    hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  }
+  pTable->iHandle = taosHashInit(pTable->hashSessions, hashFp, true, HASH_ENTRY_LOCK);
+
+  tsSdbComMgmt.numOfTables++;
+  tsSdbComMgmt.tableList[pTable->id] = pTable;
+
+  return 0;
+}
+
+static int _mnodeCreateDir(const char *dir) {
+  if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+    return -1;
+  }
+  
+  return 0;
 }
 
 static void *_getCompactTableFromId(int32_t tableId) {
@@ -85,7 +133,9 @@ static void *_getCompactTableFromId(int32_t tableId) {
 }
 
 static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused) {
-  SSdbRow *pRow = wparam;
+  ASSERT(wparam == NULL);
+
+  SSdbRow *pRow;
   SWalHead *pHead = hparam;
   int32_t tableId = pHead->msgType / 10;
   int32_t action = pHead->msgType % 10;
@@ -93,7 +143,14 @@ static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, voi
   SSdbCompactTable *pTable = _getCompactTableFromId(tableId);
   assert(pTable != NULL);
 
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+  pRow = &row;
+
   void *  key = sdbGetObjKey(pTable, pRow->pObj);
+  if (key == NULL) {
+    return 0;
+  }
   int32_t keySize = sizeof(int32_t);
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     keySize = (int32_t)strlen((char *)key);

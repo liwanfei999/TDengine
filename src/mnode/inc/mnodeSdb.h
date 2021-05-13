@@ -111,6 +111,7 @@ int64_t  sdbGetNumOfRows(void *pTable);
 int32_t  sdbGetId(void *pTable);
 uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
+void*    sdbGetObjKey(void *pTable, void *key);
 
 #ifdef __cplusplus
 }

@@ -25,6 +25,7 @@
 #include "tdataformat.h"
 #include "dnode.h"
 #include "mnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDb.h"
@@ -244,6 +245,19 @@ int32_t mnodeInitVgroups() {
   mDebug("table:vgroups is created");
   
   return 0;
+}
+
+int32_t mnodeInitVgroupsCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_VGROUP,
+    .name         = "vgroups",
+    .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
+    .keyType      = SDB_KEY_AUTO,
+    .fpDecode     = mnodeVgroupActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
 }
 
 void mnodeIncVgroupRef(SVgObj *pVgroup) {

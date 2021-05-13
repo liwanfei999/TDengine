@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "dnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeCluster.h"
@@ -120,6 +121,19 @@ int32_t mnodeInitCluster() {
 void mnodeCleanupCluster() {
   sdbCloseTable(tsClusterRid);
   tsClusterSdb = NULL;
+}
+
+int32_t mnodeInitClusterCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_CLUSTER,
+    .name         = "cluster",
+    .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
+    .keyType      = SDB_KEY_STRING,
+    .fpDecode     = mnodeClusterActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);
+  return TSDB_CODE_SUCCESS;
 }
 
 void *mnodeGetNextCluster(void *pIter, SClusterObj **pCluster) {

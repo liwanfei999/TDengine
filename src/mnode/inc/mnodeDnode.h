@@ -62,6 +62,7 @@ extern char* dnodeStatus[];
 extern char* dnodeRoles[];
 
 int32_t mnodeInitDnodes();
+int32_t mnodeInitDnodesCompact();
 void    mnodeCleanupDnodes();
 
 int32_t mnodeGetDnodesNum();

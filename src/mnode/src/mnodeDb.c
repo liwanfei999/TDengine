@@ -24,6 +24,7 @@
 #include "tdataformat.h"
 #include "tp.h"
 #include "mnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
@@ -204,6 +205,18 @@ int32_t mnodeInitDbs() {
   
   mDebug("table:dbs table is created");
   return tpInit();
+}
+
+int32_t mnodeInitDbsCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_DB,
+    .name         = "dbs",
+    .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
+    .fpDecode     = mnodeDbActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
 }
 
 void *mnodeGetNextDb(void *pIter, SDbObj **pDb) {

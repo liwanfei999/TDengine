@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t mnodeInitTables();
 void    mnodeCleanupTables();
+int32_t mnodeInitTablesCompact();
 int64_t mnodeGetSuperTableNum();
 int64_t mnodeGetChildTableNum();
 void *  mnodeGetTable(char *tableId);

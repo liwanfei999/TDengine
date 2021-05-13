@@ -23,6 +23,7 @@
 #include "tkey.h"
 #include "mnode.h"
 #include "dnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
@@ -189,6 +190,19 @@ int32_t mnodeInitUsers() {
 void mnodeCleanupUsers() {
   sdbCloseTable(tsUserRid);
   tsUserSdb = NULL;
+}
+
+int32_t mnodeInitUsersCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_USER,
+    .name         = "users",
+    .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
+    .keyType      = SDB_KEY_STRING,
+    .fpDecode     = mnodeUserActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
 }
 
 SUserObj *mnodeGetUser(char *name) {

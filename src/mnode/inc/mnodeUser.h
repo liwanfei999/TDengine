@@ -23,6 +23,7 @@ extern "C" {
 
 int32_t   mnodeInitUsers();
 void      mnodeCleanupUsers();
+int32_t   mnodeInitUsersCompact();
 SUserObj *mnodeGetUser(char *name);
 void *    mnodeGetNextUser(void *pIter, SUserObj **pUser);
 void      mnodeCancelGetNextUser(void *pIter);

@@ -40,6 +40,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "mnode.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -217,6 +218,7 @@ static int32_t dnodeInitStorage() {
   // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
   if (tsCompactMnodeWal != 0) {
+    mnodeCompactWal();
     exit(EXIT_SUCCESS);
     return 0;
   }

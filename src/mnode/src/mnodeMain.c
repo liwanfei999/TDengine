@@ -57,6 +57,18 @@ static SStep tsMnodeSteps[] = {
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
 
+// register wal compact info
+static SStep tsMnodeCompactSteps[] = {
+  {"cluster", mnodeInitClusterCompact, NULL},
+  {"dnodes",  mnodeInitDnodesCompact,  NULL},
+  {"mnodes",  mnodeInitMnodesCompact,  NULL},  
+  {"accts",   mnodeInitAcctsCompact,   NULL},
+  {"users",   mnodeInitUsersCompact,   NULL},
+  {"dbs",     mnodeInitDbsCompact,     NULL},
+  {"vgroups", mnodeInitVgroupsCompact, NULL},
+  {"tables",  mnodeInitTablesCompact, NULL},
+};
+
 static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;
@@ -69,6 +81,11 @@ static void mnodeCleanupComponents() {
 static int32_t mnodeInitComponents() {
   int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
   return dnodeStepInit(tsMnodeSteps, stepSize);
+}
+
+int32_t mnodeInitMnodeCompactTables() {
+  int32_t stepSize = sizeof(tsMnodeCompactSteps) / sizeof(SStep);
+  return dnodeStepInit(tsMnodeCompactSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {

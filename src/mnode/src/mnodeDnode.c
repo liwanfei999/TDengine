@@ -26,6 +26,7 @@
 #include "tdataformat.h"
 #include "mnode.h"
 #include "dnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDnode.h"
@@ -217,6 +218,19 @@ void mnodeCleanupDnodes() {
   free(tsDnodeEps);
   tsDnodeEps = NULL;
   tsDnodeSdb = NULL;
+}
+
+int32_t mnodeInitDnodesCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_DNODE,
+    .name         = "dnodes",
+    .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
+    .keyType      = SDB_KEY_AUTO,
+    .fpDecode     = mnodeDnodeActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);  
+  return TSDB_CODE_SUCCESS;
 }
 
 void *mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode) { 

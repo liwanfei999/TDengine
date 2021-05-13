@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "dnode.h"
+#include "mnodeCompact.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
@@ -123,6 +124,19 @@ int32_t mnodeInitAccts() {
   }
 
   mDebug("table:%s, hash is created", desc.name);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mnodeInitAcctsCompact() {
+  SSdbTableCompactDesc desc = {
+    .id           = SDB_TABLE_ACCOUNT,
+    .name         = "accounts",
+    .hashSessions = TSDB_DEFAULT_ACCOUNTS_HASH_SIZE,
+    .keyType      = SDB_KEY_STRING,
+    .fpDecode     = mnodeAcctActionDecode,
+  };
+
+  sdbOpenCompactTable(&desc);
   return TSDB_CODE_SUCCESS;
 }
 

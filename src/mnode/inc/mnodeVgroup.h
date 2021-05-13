@@ -24,6 +24,7 @@ struct SMnodeMsg;
 
 int32_t mnodeInitVgroups();
 void    mnodeCleanupVgroups();
+int32_t mnodeInitVgroupsCompact();
 int64_t mnodeGetVgroupNum();
 SVgObj *mnodeGetVgroup(int32_t vgId);
 void    mnodeIncVgroupRef(SVgObj *pVgroup);
