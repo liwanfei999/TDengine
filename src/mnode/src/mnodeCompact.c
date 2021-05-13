@@ -35,7 +35,8 @@
 static int     _mnodeCreateDir(const char *dir);
 static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused);
 static void*   _getCompactTableFromId(int32_t tableId);
-static int     _compactAndSaveWal();
+static int32_t _saveCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused);
+//static int     _compactAndSaveWal();
 
 typedef struct {
   char      name[12];
@@ -49,6 +50,7 @@ typedef struct {
 typedef struct {
   void *     wal;
   void *     wal_tmp;
+  int32_t    newWalCount;
   int32_t    numOfTables;
   SArray*    walHead;
   SSdbCompactTable *tableList[SDB_TABLE_MAX];  
@@ -63,6 +65,7 @@ int32_t mnodeCompactWal() {
   walInit();
   mnodeInitMnodeCompactTables();
   tsSdbComMgmt.walHead = taosArrayInit(1024, sizeof(SWalHead));
+  tsSdbComMgmt.newWalCount = 0;
 
   // first step: open wal
   //tsCompactSdbRid = taosOpenRef(10, _compactSdbCloseTableObj);
@@ -83,6 +86,7 @@ int32_t mnodeCompactWal() {
    return -1;
   }
   tsSdbComMgmt.wal_tmp = walOpen(temp, &walCfg);
+  walRenew(tsSdbComMgmt.wal_tmp);
 
   sdbInfo("vgId:1, open sdb wal for compact");  
   int32_t code = walRestore(tsSdbComMgmt.wal, NULL, _processCompactWal);
@@ -90,11 +94,21 @@ int32_t mnodeCompactWal() {
     sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
     return -1;
   }
+  walClose(tsSdbComMgmt.wal);
+  tsSdbComMgmt.wal = walOpen(temp, &walCfg);
 
   // third step: save compacted wal
-  _compactAndSaveWal();
+  //_compactAndSaveWal();
+  code = walRestore(tsSdbComMgmt.wal, NULL, _saveCompactWal);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
+    return -1;
+  }
 
-  sdbInfo("vgId:1, sdb wal load for compact success");
+  walFsync(tsSdbComMgmt.wal_tmp, true);
+  walClose(tsSdbComMgmt.wal_tmp);
+
+  sdbInfo("vgId:1, sdb wal load for compact success,wal count:%d", tsSdbComMgmt.newWalCount);
   return 0;  
 }
 
@@ -132,7 +146,18 @@ static void *_getCompactTableFromId(int32_t tableId) {
   return tsSdbComMgmt.tableList[tableId];
 }
 
+static void *sdbCompactGetObjKey(void* table, void *key) {
+  SSdbCompactTable *pTable = (SSdbCompactTable *)table;
+  if (pTable->keyType == SDB_KEY_VAR_STRING) {
+    return *(char **)key;
+  }
+
+  return key;
+}
+
 static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused) {
+  //sdbInfo("_processCompactWal %p %d", hparam, qtype);
+
   ASSERT(wparam == NULL);
 
   SSdbRow *pRow;
@@ -147,19 +172,25 @@ static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, voi
   (*pTable->fpDecode)(&row);
   pRow = &row;
 
-  void *  key = sdbGetObjKey(pTable, pRow->pObj);
+  void *  key = sdbCompactGetObjKey(pTable, pRow->pObj);
   if (key == NULL) {
+    sdbInfo("key NULL, type:%d", pTable->keyType);
     return 0;
   }
+  
   int32_t keySize = sizeof(int32_t);
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
     keySize = (int32_t)strlen((char *)key);
   }
 
-  if (action == SDB_ACTION_DELETE) {
-    taosHashRemove(pTable->iHandle, key, keySize);
-  } else {
-    taosHashPut(pTable->iHandle, key, keySize, &pRow->pObj, sizeof(int64_t));
+  sdbInfo("add key %s, keySize: %d, type:%d, action:%d,cont:%p", (char*)key, keySize, pTable->keyType, action,pRow->pObj);
+
+  if (keySize > 0) {
+    if (action == SDB_ACTION_DELETE) {
+      taosHashRemove(pTable->iHandle, key, keySize);
+    } else {
+      taosHashPut(pTable->iHandle, key, keySize, &pRow->pObj, sizeof(int64_t));
+    }
   }
 
   taosArrayPush(tsSdbComMgmt.walHead, pHead);
@@ -167,8 +198,54 @@ static int32_t _processCompactWal(void *wparam, void *hparam, int32_t qtype, voi
   return 0;
 }
 
+static int32_t _saveCompactWal(void *wparam, void *hparam, int32_t qtype, void *unused) {
+  //sdbInfo("_processCompactWal %p %d", hparam, qtype);
+
+  ASSERT(wparam == NULL);
+
+  SSdbRow *pRow;
+  SWalHead *pHead = hparam;
+  int32_t tableId = pHead->msgType / 10;
+  int32_t action = pHead->msgType % 10;
+
+  SSdbCompactTable *pTable = _getCompactTableFromId(tableId);
+  assert(pTable != NULL);
+
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+  (*pTable->fpDecode)(&row);
+  pRow = &row;
+
+  void *  key = sdbCompactGetObjKey(pTable, pRow->pObj);
+  if (key == NULL) {
+    sdbInfo("key NULL, type:%d", pTable->keyType);
+    return 0;
+  }
+  
+  int32_t keySize = sizeof(int32_t);
+  if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
+    keySize = (int32_t)strlen((char *)key);
+  }
+
+  sdbInfo("new add key %s, keySize: %d, type:%d, action:%d,cont:%p", (char*)key, keySize, pTable->keyType, action,pRow->pObj);
+
+  if (keySize > 0) {
+    void* p = taosHashGet(pTable->iHandle, key, keySize);
+    if (p == NULL) {
+      return 0;
+    }
+  }
+
+  walWrite(tsSdbComMgmt.wal_tmp, pHead);
+  ++tsSdbComMgmt.newWalCount;
+
+  return 0;
+}
+
+/*
 int _compactAndSaveWal() {
   size_t size = taosArrayGetSize(tsSdbComMgmt.walHead);
+  size_t count = 0;
+  sdbInfo("wal size:%ld", size);
 
   for (size_t i = 0; i < size; ++i) {
     SWalHead *pHead = taosArrayGet(tsSdbComMgmt.walHead, i);
@@ -182,21 +259,31 @@ int _compactAndSaveWal() {
     SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
     (*pTable->fpDecode)(&row);
 
-    void *  key = sdbGetObjKey(pTable, row.pObj);
+    void *  key = sdbCompactGetObjKey(pTable, row.pObj);
     int32_t keySize = sizeof(int32_t);
     if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
       keySize = (int32_t)strlen((char *)key);
     }
 
-    void* p = taosHashGet(pTable->iHandle, key, keySize);
-    if (p == NULL) {
-      continue;
+    if (keySize > 0) {
+      void* p = taosHashGet(pTable->iHandle, key, keySize);
+      if (p == NULL) {
+        continue;
+      }
     }
 
+    sdbInfo("key:%s, keySize:%d,type:%d,head:%p", (char*)key, keySize, pTable->keyType,pHead);
+
+    count += 1;
     walWrite(tsSdbComMgmt.wal_tmp, pHead);
   }
 
+  sdbInfo("new wal size:%ld", count);
+
+  walFsync(tsSdbComMgmt.wal_tmp, true);
+  walClose(tsSdbComMgmt.wal_tmp);
   // rename wal dir
 
   return 0;
 }
+*/

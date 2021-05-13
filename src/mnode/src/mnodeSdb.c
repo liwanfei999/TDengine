@@ -136,7 +136,7 @@ bool sdbIsServing() {
   return tsSdbMgmt.status == SDB_STATUS_SERVING; 
 }
 
-void *sdbGetObjKey(void* table, void *key) {
+static void *sdbGetObjKey(void* table, void *key) {
   SSdbTable *pTable = (SSdbTable *)table;
   if (pTable->keyType == SDB_KEY_VAR_STRING) {
     return *(char **)key;
